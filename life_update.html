@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Life Update | Proxy</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neon: {
+                            cyan: '#00f2ea',
+                            pink: '#ff0050',
+                            purple: '#bc13fe',
+                            green: '#0aff0a',
+                        },
+                        bg: {
+                            dark: '#050505',
+                            panel: 'rgba(5, 5, 5, 0.9)'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 10px #00f2ea, 0 0 20px #00f2ea44',
+                        'neon-pink': '0 0 10px #ff0050, 0 0 20px #ff005044',
+                        'neon-purple': '0 0 10px #bc13fe, 0 0 20px #bc13fe44',
+                    },
+                    animation: {
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bar-dance': 'barDance 0.397s ease-in-out infinite alternate', /* 151 BPM Sync */
+                    },
+                    keyframes: {
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        },
+                        barDance: {
+                            '0%': { height: '20%' },
+                            '100%': { height: '100%' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel -->
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Framer Motion -->
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body,
+        html {
+            background-color: #050505;
+            color: #e0e0e0;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            cursor: none !important;
+            /* Forces custom cursor */
+        }
+
+        /* Scanlines Effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom,
+                    rgba(255, 255, 255, 0),
+                    rgba(255, 255, 255, 0) 50%,
+                    rgba(0, 0, 0, 0.1) 50%,
+                    rgba(0, 0, 0, 0.1));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* CRT Vignette */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0) 60%, rgba(0, 242, 234, 0.05) 90%, rgba(0, 0, 0, 0.4) 100%);
+            pointer-events: none;
+            z-index: 51;
+        }
+
+        /* Interactive Element Indicator */
+        .sound-active {
+            position: relative;
+        }
+
+        .sound-active::after {
+            content: '🔊';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 50%;
+            padding: 2px;
+            border: 1px solid #00f2ea;
+        }
+
+        .sound-active:hover::after {
+            opacity: 1;
+        }
+
+        /* No select */
+        .noselect {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Party Mode Global Spin */
+        .party-mode-spin {
+            animation: spinWhole 2s linear infinite;
+        }
+
+        @keyframes spinWhole {
+            0% {
+                transform: rotate(0deg) scale(0.8);
+            }
+
+            100% {
+                transform: rotate(360deg) scale(0.8);
+            }
+        }
+
+        /* Rainbow Text/Border Animation */
+        .rainbow-mode {
+            animation: rainbow 1s linear infinite;
+        }
+
+        @keyframes rainbow {
+            0% {
+                filter: hue-rotate(0deg);
+            }
+
+            100% {
+                filter: hue-rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <!-- React App -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } = React;
+        const { motion, AnimatePresence, useMotionValue, useSpring, useTransform } = window.Motion;
+
+        // --- AUDIO SYNC CONFIGURATION ---
+        const BPM = 151;
+        const BEAT_MS = 60000 / BPM; // ~397ms per beat
+
+        const SONG_SECTIONS = [
+            { id: 'intro', start: 0, end: 27, intensity: 1 },         // Low
+            { id: 'buildup', start: 27, end: 54, intensity: 2 },      // Medium
+            { id: 'drop', start: 54, end: 81, intensity: 3 },         // HIGH/CHAOS
+            { id: 'break', start: 81, end: 95, intensity: 1 },        // Low
+            { id: 'climax', start: 95, end: 122, intensity: 4 },      // EXTREME
+            { id: 'outro', start: 122, end: 9999, intensity: 1 }      // Low
+        ];
+
+        // --- SOUND SYSTEM ---
+        const sounds = {
+            'vine-boom': 'https://www.myinstants.com/media/sounds/vine-boom.mp3',
+            'anime-wow': 'https://www.myinstants.com/media/sounds/anime-wow-sound-effect.mp3',
+            'discord': 'https://www.myinstants.com/media/sounds/discord-notification.mp3',
+            'metal-pipe': 'https://www.myinstants.com/media/sounds/metal-pipe-falling-sound-effect-but-it-s-more-echoey.mp3',
+            'bruh': 'https://www.myinstants.com/media/sounds/movie_1.mp3',
+            'click': 'https://www.soundjay.com/button/sounds/button-3.mp3'
+        };
+
+        const playSfx = (type) => {
+            try {
+                const audio = new Audio(sounds[type]);
+                audio.volume = 0.4;
+                audio.play().catch(e => console.log("Audio play failed", e));
+            } catch (err) { console.error("SFX Error", err); }
+        };
+
+        // --- HOOKS ---
+
+        const useAudioSync = (audioRef, isPlaying) => {
+            const [syncState, setSyncState] = useState({
+                beatTrigger: false, // Toggles every beat
+                intensity: 1,
+                section: 'intro',
+                beatIndex: 0
+            });
+
+            // Refs for maintaining state across animation frames without triggering re-renders for internal logic
+            const internalRef = useRef({
+                lastBeatTime: 0,
+                beatCount: 0
+            });
+
+            const tick = useCallback(() => {
+                if (!audioRef.current || !isPlaying) return;
+
+                const currentTime = audioRef.current.currentTime;
+
+                // 1. Determine Section & Intensity
+                const currentSection = SONG_SECTIONS.find(s => currentTime >= s.start && currentTime < s.end) || SONG_SECTIONS[0];
+
+                // 2. Beat Detection logic
+                // We assume the song starts at 0.0s for the first beat (or close enough)
+                // BPM = 151 => Interval ~397ms
+                const nowMs = currentTime * 1000;
+                const timeSinceLastBeat = nowMs - internalRef.current.lastBeatTime;
+
+                let beatHit = false;
+                if (timeSinceLastBeat >= BEAT_MS) {
+                    beatHit = true;
+                    // Resync to the grid to avoid drift
+                    // Ensure lastBeatTime is a multiple of BEAT_MS roughly
+                    internalRef.current.lastBeatTime = nowMs - (nowMs % BEAT_MS);
+                    internalRef.current.beatCount++;
+                }
+
+                if (beatHit || syncState.section !== currentSection.id) {
+                    setSyncState(prev => ({
+                        beatTrigger: beatHit ? !prev.beatTrigger : prev.beatTrigger,
+                        intensity: currentSection.intensity,
+                        section: currentSection.id,
+                        beatIndex: internalRef.current.beatCount
+                    }));
+                }
+            }, [audioRef, isPlaying, syncState.section]);
+
+            useEffect(() => {
+                let frameId;
+                const loop = () => {
+                    tick();
+                    frameId = requestAnimationFrame(loop);
+                };
+                if (isPlaying) loop();
+                return () => cancelAnimationFrame(frameId);
+            }, [isPlaying, tick]);
+
+            return syncState;
+        };
+
+        // --- CUSTOM GHOST CURSOR ---
+        const CustomCursor = () => {
+            const cursorX = useMotionValue(-100);
+            const cursorY = useMotionValue(-100);
+            const springConfig = { damping: 25, stiffness: 300 };
+            const ringX = useSpring(cursorX, springConfig);
+            const ringY = useSpring(cursorY, springConfig);
+
+            useEffect(() => {
+                const moveCursor = (e) => {
+                    cursorX.set(e.clientX - 16);
+                    cursorY.set(e.clientY - 16);
+                };
+                window.addEventListener('mousemove', moveCursor);
+                return () => window.removeEventListener('mousemove', moveCursor);
+            }, []);
+
+            return (
+                <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[100] overflow-hidden">
+                    <motion.div style={{ translateX: cursorX, translateY: cursorY, x: 12, y: 12 }} className="absolute w-2 h-2 bg-neon-cyan rounded-full shadow-[0_0_10px_#00f2ea]" />
+                    <motion.div style={{ translateX: ringX, translateY: ringY }} className="absolute w-8 h-8 border-2 border-neon-cyan/50 rounded-full" />
+                    <motion.div style={{ translateX: ringX, translateY: ringY }} className="absolute w-8 h-8 flex items-center justify-center opacity-30">
+                        <div className="w-[1px] h-full bg-neon-cyan"></div>
+                        <div className="h-[1px] w-full bg-neon-cyan absolute"></div>
+                    </motion.div>
+                </div>
+            );
+        };
+
+        // --- MUSIC PLAYER COMPONENT ---
+        const MusicPlayer = ({ audioRef, isPlaying, onToggle, beatTrigger, intensity }) => {
+            // Visualizer bars driven by beatTrigger
+
+            return (
+                <div className="fixed bottom-6 left-6 z-[60] flex items-center gap-4 bg-black/80 backdrop-blur border border-neon-cyan/30 px-4 py-3 rounded-lg shadow-neon-cyan/20 shadow-lg pointer-events-auto">
+                    {/* Audio element is now managed by App, but we render controls here */}
+
+                    <button
+                        onClick={onToggle}
+                        className="text-neon-cyan hover:text-white transition-colors focus:outline-none"
+                    >
+                        {isPlaying ? <Icon name="pause" className="w-6 h-6" /> : <Icon name="play" className="w-6 h-6" />}
+                    </button>
+
+                    <div className="flex items-end gap-1 h-8">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <div
+                                key={i}
+                                className={`w-1 bg-neon-pink rounded-t-sm transition-all duration-100 ease-out`}
+                                style={{
+                                    height: isPlaying ? (beatTrigger ? `${Math.random() * 80 + 20}%` : '20%') : '4px',
+                                    backgroundColor: intensity > 2 ? '#ff0050' : '#bc13fe'
+                                }}
+                            ></div>
+                        ))}
+                    </div>
+
+                    <div className="text-xs font-mono text-neon-cyan">
+                        <div className="opacity-70">NOW_PLAYING</div>
+                        <div className="font-bold tracking-widest leading-none">NIGHT_THEATER.mp3</div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- BACKGROUND PONG COMPONENT ---
+        const AutoPong = ({ intensity, beatTrigger }) => {
+            const canvasRef = useRef(null);
+
+            // Store intensity in ref to access inside requestAnimationFrame without re-binding
+            const intensityRef = useRef(intensity);
+            const beatTriggerRef = useRef(beatTrigger);
+
+            useEffect(() => {
+                intensityRef.current = intensity;
+            }, [intensity]);
+
+            useEffect(() => {
+                beatTriggerRef.current = beatTrigger;
+                // Set a flag to "pulse" for a few frames
+                pulseRef.current = 5;
+            }, [beatTrigger]);
+
+            const pulseRef = useRef(0);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let animationFrameId;
+
+                const ball = { x: canvas.width / 2, y: canvas.height / 2, dx: 4, dy: 4, size: 8 };
+                const paddleH = 100;
+                const paddleW = 10;
+                const leftPaddle = { y: canvas.height / 2 - 50 };
+                const rightPaddle = { y: canvas.height / 2 - 50 };
+
+                const resize = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                };
+                window.addEventListener('resize', resize);
+                resize();
+
+                const update = () => {
+                    // Speed based on intensity
+                    // Intensity: 1 (Slow), 2 (Med), 3 (High), 4 (Extreme)
+                    const speedMultiplier = intensityRef.current === 4 ? 2.5 : (intensityRef.current === 3 ? 1.8 : (intensityRef.current === 2 ? 1.2 : 0.8));
+                    const baseSpeed = 5;
+                    const aiSpeed = baseSpeed * speedMultiplier;
+
+                    // Ball Movement
+                    ball.x += ball.dx * (speedMultiplier * 0.8); // Scale ball speed slightly less than AI
+                    ball.y += ball.dy * (speedMultiplier * 0.8);
+
+                    if (ball.y < 0 || ball.y > canvas.height) ball.dy *= -1;
+
+                    // AI Tracking
+                    const leftCenter = leftPaddle.y + paddleH / 2;
+                    if (leftCenter < ball.y - 10) leftPaddle.y += aiSpeed;
+                    else if (leftCenter > ball.y + 10) leftPaddle.y -= aiSpeed;
+
+                    const rightCenter = rightPaddle.y + paddleH / 2;
+                    if (rightCenter < ball.y - 10) rightPaddle.y += aiSpeed;
+                    else if (rightCenter > ball.y + 10) rightPaddle.y -= aiSpeed;
+
+                    leftPaddle.y = Math.max(0, Math.min(canvas.height - paddleH, leftPaddle.y));
+                    rightPaddle.y = Math.max(0, Math.min(canvas.height - paddleH, rightPaddle.y));
+
+                    // Collision
+                    if (ball.x - ball.size < paddleW && ball.y > leftPaddle.y && ball.y < leftPaddle.y + paddleH) {
+                        ball.dx = Math.abs(ball.dx); // Bounce right
+                        ball.x = paddleW + ball.size;
+                    }
+                    if (ball.x + ball.size > canvas.width - paddleW && ball.y > rightPaddle.y && ball.y < rightPaddle.y + paddleH) {
+                        ball.dx = -Math.abs(ball.dx); // Bounce left
+                        ball.x = canvas.width - paddleW - ball.size;
+                    }
+
+                    if (ball.x < 0 || ball.x > canvas.width) {
+                        ball.x = canvas.width / 2;
+                        ball.y = canvas.height / 2;
+                        ball.dx = Math.random() > 0.5 ? 4 : -4;
+                        ball.dy = Math.random() > 0.5 ? 4 : -4;
+                    }
+
+                    // Decay pulse
+                    if (pulseRef.current > 0) pulseRef.current--;
+                };
+
+                const draw = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Use clearRect for transparency
+
+                    // Center Line
+                    ctx.setLineDash([10, 15]);
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2, 0);
+                    ctx.lineTo(canvas.width / 2, canvas.height);
+                    ctx.strokeStyle = 'rgba(50,50,50, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Dynamic Color & Glow
+                    // If pulse > 0 (beat hit), glow harder
+                    const isPulse = pulseRef.current > 0;
+                    const glowSize = isPulse && intensityRef.current >= 3 ? 30 : 10;
+
+                    ctx.fillStyle = '#00f2ea';
+                    ctx.shadowBlur = glowSize;
+                    ctx.shadowColor = '#00f2ea';
+                    ctx.fillRect(0, leftPaddle.y, paddleW, paddleH);
+
+                    ctx.fillStyle = '#ff0050';
+                    ctx.shadowColor = '#ff0050';
+                    ctx.fillRect(canvas.width - paddleW, rightPaddle.y, paddleW, paddleH);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowColor = '#ffffff';
+                    ctx.beginPath();
+                    // Ball pulses on beat in drop/climax
+                    const ballR = isPulse && intensityRef.current >= 3 ? ball.size * 1.5 : ball.size;
+                    ctx.arc(ball.x, ball.y, ballR, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    update();
+                    animationFrameId = window.requestAnimationFrame(draw);
+                };
+
+                draw();
+
+                return () => {
+                    window.cancelAnimationFrame(animationFrameId);
+                    window.removeEventListener('resize', resize);
+                };
+            }, []);
+
+            return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full z-0 opacity-30 pointer-events-none" />;
+        };
+
+        // --- COMMON COMPONENTS ---
+
+        const Typewriter = ({ text, speed = 100, className = "" }) => {
+            const [display, setDisplay] = useState("");
+            useEffect(() => {
+                let i = 0;
+                setDisplay("");
+                const interval = setInterval(() => {
+                    if (i < text.length) { setDisplay(prev => prev + text.charAt(i)); i++; }
+                    else { clearInterval(interval); }
+                }, speed);
+                return () => clearInterval(interval);
+            }, [text, speed]);
+            return <span className={`${className}`}>{display}<span className="animate-pulse">_</span></span>;
+        };
+
+        const Icon = ({ name, className = "" }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (!ref.current || !window.lucide) return;
+                ref.current.innerHTML = '';
+                const iconElement = document.createElement('i');
+                iconElement.setAttribute('data-lucide', name);
+                iconElement.setAttribute('class', className);
+                ref.current.appendChild(iconElement);
+                window.lucide.createIcons({ root: ref.current });
+            }, [name, className]);
+            return <span ref={ref} className="inline-flex items-center justify-center" />;
+        };
+
+        const TerminalBlock = ({ command, output, type = "success" }) => (
+            <div className="bg-black/90 border border-neon-cyan/30 rounded p-4 font-mono text-sm my-4 shadow-neon-cyan/20 shadow-lg w-full sound-active cursor-none transform hover:scale-[1.01] transition-transform"
+                onClick={() => playSfx('vine-boom')} title="Click for Sound">
+                <div className="flex gap-2 mb-2 border-b border-gray-800 pb-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <div className="text-gray-400">$ {command}</div>
+                <div className={`mt-2 ${type === 'error' ? 'text-red-500' : 'text-neon-cyan'} whitespace-pre-wrap`}>{output}</div>
+            </div>
+        );
+
+        const GlitchText = ({ text, as = "h1", className = "" }) => {
+            const Tag = as;
+            return (
+                <Tag className={`relative inline-block ${className} group cursor-none sound-active`} onClick={() => playSfx('discord')}>
+                    <span className="relative z-10">{text}</span>
+                    <span className="absolute top-0 left-0 -ml-0.5 translate-x-[2px] text-neon-pink opacity-70 mix-blend-multiply group-hover:animate-pulse z-0">{text}</span>
+                    <span className="absolute top-0 left-0 -ml-0.5 -translate-x-[2px] text-neon-cyan opacity-70 mix-blend-multiply group-hover:animate-pulse delay-75 z-0">{text}</span>
+                </Tag>
+            );
+        };
+
+        const StatCard = ({ icon, title, value, color = "neon-cyan", img = null }) => {
+            return (
+                <motion.div drag dragConstraints={{ left: -50, right: 50, top: -50, bottom: 50 }}
+                    whileDrag={{ scale: 1.1, cursor: 'grabbing', zIndex: 50 }}
+                    whileHover={{ scale: 1.05, rotate: 1 }}
+                    whileTap={{ scale: 0.95, cursor: 'grabbing' }}
+                    onClick={() => playSfx('anime-wow')}
+                    className={`sound-active relative p-6 border border-gray-800 bg-gray-900/80 backdrop-blur-sm rounded-lg hover:shadow-2xl transition-all duration-300 group overflow-hidden cursor-grab active:cursor-grabbing`}
+                    style={{ borderColor: color === 'neon-pink' ? '#ff0050' : '#00f2ea' }}
+                >
+                    {img && <div className="absolute inset-0 opacity-10 group-hover:opacity-30 transition-opacity bg-cover bg-center" style={{ backgroundImage: `url('${img}')` }}></div>}
+                    <div className={`relative z-10 mb-4 ${color === 'neon-pink' ? 'text-neon-pink' : 'text-neon-cyan'} group-hover:animate-bounce`}><Icon name={icon} className="w-8 h-8" /></div>
+                    <h3 className="relative z-10 text-gray-400 text-sm uppercase tracking-wider mb-1">{title}</h3>
+                    <div className="relative z-10 text-xl md:text-2xl font-bold text-white group-hover:text-shadow-glow">{value}</div>
+                </motion.div>
+            );
+        };
+
+        const ProgressBar = ({ current, total }) => {
+            const progress = ((current + 1) / total) * 100;
+            return (
+                <div className="fixed bottom-0 left-0 w-full h-2 bg-gray-900 z-50">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} className="h-full bg-neon-cyan shadow-[0_0_15px_#00f2ea]" />
+                </div>
+            );
+        };
+
+        const MemeImage = ({ src, alt }) => (
+            <motion.img src={src} alt={alt} className="rounded border-2 border-neon-purple shadow-lg mt-4 max-h-[30vh] object-contain mx-auto"
+                initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.1, rotate: [-2, 2, -2] }} />
+        );
+
+        // --- SLIDE DATA (UNCHANGED) ---
+        const slides = [
+            // (Same content as before, keeping it concise for token limit)
+            {
+                id: 'intro',
+                render: () => (
+                    <div className="text-center">
+                        <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute top-0 right-0 opacity-20 pointer-events-none">
+                            <Icon name="settings" className="w-64 h-64 text-neon-cyan" />
+                        </motion.div>
+                        <div className="mb-4 text-neon-pink font-bold tracking-widest text-xl animate-pulse">SYSTEM_READY // INITIATING DOOM</div>
+                        <div className="text-6xl md:text-8xl font-black mb-6 text-white text-shadow-glow">
+                            <Typewriter text="PROXY'S LIFE UPDATE" speed={150} />
+                        </div>
+                        <div className="text-2xl text-neon-cyan bg-black/50 px-4 py-2 rounded inline-block">"The Java Island Chronicles: Survival Edition"</div>
+                        <div className="mt-8"><i className="text-neon-purple text-lg">"Ara ara, welcome to the matrix..."</i></div>
+                    </div>
+                )
+            },
+            {
+                id: 'activities',
+                title: "RECENT_ACTIVITIES && STRUGGLES",
+                render: () => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-[80vw]">
+                        <TerminalBlock command="npm run dev" output={`> qrflow@0.1.0 dev\n> vite\n\nERROR: Brain not found.\nERROR: Caffeine depletion.\n[Status] Skill Issue detected.`} type="error" />
+                        <div className="grid grid-cols-1 gap-4">
+                            <StatCard icon="network" title="Networking" value="Cisco Packet Tracer (Click cables randomly)" />
+                            <StatCard icon="file-text" title="Writing" value="Essays: AI will replace me fr fr" color="neon-pink" />
+                            <StatCard icon="code" title="Challenge" value="Advent of Code (Copied from Reddit)" />
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'achievements',
+                title: "ACHIEVEMENT_UNLOCKED?",
+                render: () => (
+                    <div className="w-[80vw]">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <StatCard icon="sun" title="Morning Routine" value="Waking up at 7 AM (Impossible)" color="neon-pink" img="https://media.giphy.com/media/NFA61GS9qDN68/giphy.gif" />
+                            <StatCard icon="music" title="Rhythm Games" value="Rhythm game: Finger Spasm" />
+                            <StatCard icon="shield" title="Social Battery" value="Introvert: 99% Remaining" />
+                        </div>
+                        <div className="text-center mt-8 text-xl text-gray-400">"Is this a flex? No. It's cry for help." <span className="text-neon-cyan">wkwkwk</span></div>
+                    </div>
+                )
+            },
+            {
+                id: 'social',
+                title: "SOCIAL_CONNECTIONS",
+                render: () => (
+                    <div className="flex flex-col gap-6 w-[70vw]">
+                        <div className="sound-active bg-gray-900/60 p-6 border-l-4 border-neon-cyan flex items-center gap-4 hover:ml-4 transition-all duration-300">
+                            <Icon name="globe" className="text-neon-cyan w-12 h-12" />
+                            <div><h3 className="font-bold text-2xl">International Link</h3><p className="text-gray-300">Friend from Myanmar. <span className="italic text-gray-500">(Liyuba)</span></p></div>
+                        </div>
+                        <div className="sound-active bg-gray-900/60 p-6 border-l-4 border-neon-pink flex items-center gap-4 hover:ml-4 transition-all duration-300">
+                            <Icon name="users" className="text-neon-pink w-12 h-12" />
+                            <div><h3 className="font-bold text-2xl">The "Old Squad"</h3><p className="text-gray-300">Legacy codebase. Only touches production on weekends.</p></div>
+                        </div>
+                        <div className="sound-active bg-gray-900/60 p-6 border-l-4 border-white flex items-center gap-4 hover:ml-4 transition-all duration-300">
+                            <Icon name="skull" className="text-white w-12 h-12 animate-pulse" />
+                            <div><h3 className="font-bold text-2xl">Lecturers</h3><p className="text-gray-300">Relationship status: <span className="text-red-500 font-bold">B aja sih</span></p></div>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'plot-twist',
+                render: () => (
+                    <div className="text-center relative z-10 p-10 border-4 border-neon-pink bg-black/80 rotate-1">
+                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}>
+                            <Icon name="alert-triangle" className="w-32 h-32 text-neon-pink mx-auto mb-6" />
+                        </motion.div>
+                        <h2 className="text-7xl font-bold mb-4 text-white">404: DRAMA NOT FOUND</h2>
+                        <p className="text-3xl text-gray-300">Life Status: <span className="text-neon-cyan">Flat / Lempeng / NPC Energy</span></p>
+                        <MemeImage src="https://media.giphy.com/media/13MgPKKrntnDPq/giphy.gif" alt="Flat life" />
+                    </div>
+                )
+            },
+            {
+                id: 'chaos',
+                render: () => (
+                    <div className="text-center w-[80vw] relative">
+                        <div className="absolute inset-0 bg-red-600/20 animate-pulse pointer-events-none z-0"></div>
+                        <h1 className="text-9xl font-black text-red-600 mb-8 tracking-tighter relative z-10 shake-constant shake-hard">RED ALERT</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                            <motion.div whileHover={{ scale: 1.1, rotate: 2 }} className="sound-active bg-red-900/40 border-2 border-red-600 p-8 rounded backdrop-blur cursor-help" onClick={() => playSfx('metal-pipe')}>
+                                <h2 className="text-4xl font-bold text-red-500 mb-4">CALCULUS</h2>
+                                <p className="text-xl text-red-300">Aaah~~~!!</p>
+                                <p className="text-sm text-red-400 mt-2">Riemann Sums are haunting my dreams.</p>
+                            </motion.div>
+                            <motion.div whileHover={{ scale: 1.1, rotate: -2 }} className="sound-active bg-red-900/40 border-2 border-red-600 p-8 rounded backdrop-blur cursor-not-allowed" onClick={() => playSfx('vine-boom')}>
+                                <h2 className="text-4xl font-bold text-red-500 mb-4">C POINTERS</h2>
+                                <p className="text-xl text-red-300">Segfault (core dumped)</p>
+                                <div className="mt-4 font-mono text-sm bg-black p-2 text-red-500 text-left">*ptr = &hope;<br />free(hope);<br />// bjir</div>
+                            </motion.div>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'embarrassing',
+                title: "EMBARRASSING_LOGS",
+                render: () => (
+                    <div className="w-[70vw]">
+                        <TerminalBlock command="sudo search --target='aib' --force" output="> Access Denied.\n> Trying brute force...\n> Result: NULL\n> Message: 'Bro, just act cool. Nobody saw that.'" type="success" />
+                        <div className="text-center mt-8">
+                            <motion.button whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }} onClick={() => playSfx('bruh')}
+                                className="sound-active bg-neon-cyan/20 text-neon-cyan px-8 py-4 rounded-full text-2xl font-bold border-2 border-neon-cyan shadow-[0_0_20px_#00f2ea]">
+                                ACTIVATE "STAY COOL" PROTOCOL
+                            </motion.button>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'environment',
+                title: "ENVIRONMENT_SCAN",
+                render: () => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-[80vw]">
+                        <StatCard icon="thermometer" title="Weather" value="Cikarang Heat (5 Suns)" color="neon-pink" img="https://media.giphy.com/media/P7JmDW7IkB7TW/giphy.gif" />
+                        <StatCard icon="wifi" title="Internet" value="Lancar (Packet Loss: 🐂)" />
+                    </div>
+                )
+            },
+            {
+                id: 'unforgettable',
+                title: "MEMORY_CORE",
+                render: () => (
+                    <div className="space-y-6 w-[70vw]">
+                        <motion.div whileHover={{ x: 10 }} className="sound-active bg-gray-800/80 p-6 rounded border-l-4 border-neon-cyan">
+                            <div className="text-sm text-gray-500 mb-2">LOCATION_ID: 101</div>
+                            <h3 className="text-3xl font-bold text-white mb-2">Living in Java Island</h3>
+                            <p className="text-gray-300">Every day is a battle royale.</p>
+                        </motion.div>
+                    </div>
+                )
+            },
+            {
+                id: 'conclusion',
+                render: () => (
+                    <div className="text-center max-w-4xl">
+                        <h2 className="text-5xl font-bold mb-12 text-white leading-tight">"Calculus is temporary,<br /><span className="text-neon-cyan glow-text">Glory is forever.</span>"</h2>
+                        <div className="inline-block p-8 border-4 border-neon-pink rounded-xl bg-black/80 backdrop-blur rotate-2">
+                            <div className="text-gray-400 text-sm uppercase mb-2">Overall Rating</div>
+                            <div className="text-8xl font-black text-neon-pink flex items-center gap-2">8.5<span className="text-4xl text-gray-600 block">/10</span></div>
+                            <div className="text-sm text-gray-500 mt-2">Not great, not terrible.</div>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'outro',
+                render: () => (
+                    <div className="text-center">
+                        <GlitchText text="QnA SESSION" className="text-7xl font-bold mb-8 text-white" />
+                        <div className="bg-gray-900/90 p-10 rounded-lg border border-gray-700 max-w-3xl mx-auto text-left shadow-2xl">
+                            <h3 className="text-neon-cyan text-2xl mb-6 font-bold flex items-center gap-2"><Icon name="terminal" className="w-6 h-6" /> RULES.md</h3>
+                            <ul className="space-y-4 text-xl text-gray-300 list-disc pl-6">
+                                <li>No Canva allowed. (This is <span className="text-neon-cyan">PURE CODE</span>).</li>
+                                <li className="text-neon-pink font-bold">Don't ask about Calculus grades.</li>
+                                <li>One question at a time.</li>
+                            </ul>
+                            <div className="mt-8 text-center"><img src="https://media.giphy.com/media/111ebonMs90YLu/giphy.gif" className="h-24 inline-block opacity-80 rounded" /></div>
+                        </div>
+                        <div className="mt-12 text-sm text-gray-600 font-mono">Press <span className="bg-gray-800 px-2 py-1 rounded text-white">ESC</span> to exit fullscreen</div>
+                    </div>
+                )
+            }
+        ];
+
+        // --- START OVERLAY ---
+        const StartOverlay = ({ onStart }) => (
+            <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0, pointerEvents: 'none' }} className="fixed inset-0 z-[100] bg-black flex items-center justify-center flex-col">
+                <div className="scanlines"></div>
+                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 1, type: "spring" }} className="text-center">
+                    <h1 className="text-6xl font-black text-white mb-8 tracking-tighter">PROXY<span className="text-neon-cyan">_OS</span></h1>
+                    <motion.button whileHover={{ scale: 1.1, textShadow: "0 0 8px rgb(255, 0, 80)" }} whileTap={{ scale: 0.95 }} onClick={onStart}
+                        className="bg-transparent border-2 border-neon-pink text-neon-pink px-12 py-4 text-2xl font-bold rounded hover:bg-neon-pink hover:text-white transition-all duration-300 shadow-[0_0_20px_rgba(255,0,80,0.3)] hover:shadow-[0_0_40px_rgba(255,0,80,0.6)]">
+                        INITIALIZE SYSTEM
+                    </motion.button>
+                    <div className="mt-4 text-gray-500 font-mono text-sm typewriter">&gt; waiting for user input...</div>
+                </motion.div>
+            </motion.div>
+        );
+
+        // --- GLOBAL EFFECTS (JEDAG JEDUG) ---
+        const EffectOverlay = ({ beatTrigger, intensity }) => {
+            if (intensity < 3) return null; // No effects for low intensity
+
+            // On beat trigger, show aberration/shake
+            // We use Framer Motion variants
+            return (
+                <AnimatePresence>
+                    {beatTrigger && (
+                        <motion.div
+                            initial={{ opacity: 0.8, x: -5 }}
+                            animate={{ opacity: 0, x: 5 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.1 }}
+                            className="fixed inset-0 pointer-events-none z-[90] mix-blend-color-dodge bg-red-900/10"
+                            style={{
+                                filter: 'chromatic-aberration(5px)',
+                                transform: `translate(${Math.random() * 10 - 5}px, ${Math.random() * 10 - 5}px)`
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
+            );
+        };
+
+        // --- MAIN APP ---
+        const App = () => {
+            const [hasStarted, setHasStarted] = useState(false);
+            const [currentSlide, setCurrentSlide] = useState(0);
+            const [direction, setDirection] = useState(0);
+            const [isFullscreen, setIsFullscreen] = useState(false);
+            const [partyMode, setPartyMode] = useState(false);
+
+            // Audio Reference managed here
+            const audioRef = useRef(null);
+            const [audioPlaying, setAudioPlaying] = useState(false);
+
+            // --- SYNC ENGINE ---
+            const { beatTrigger, intensity, section } = useAudioSync(audioRef, audioPlaying);
+
+            const isTransitioning = useRef(false);
+            const [scale, setScale] = useState(1);
+            const containerRef = useRef(null);
+
+            // KONAMI
+            const inputBuffer = useRef([]);
+            const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
+            useEffect(() => {
+                const handleResize = () => {
+                    const targetW = 1920; const targetH = 1080;
+                    const scaleW = window.innerWidth / targetW;
+                    const scaleH = window.innerHeight / targetH;
+                    setScale(Math.min(scaleW, scaleH));
+                };
+                window.addEventListener('resize', handleResize);
+                handleResize();
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            const nextSlide = () => {
+                if (isTransitioning.current) return;
+                if (currentSlide < slides.length - 1) {
+                    isTransitioning.current = true;
+                    setDirection(1);
+                    setCurrentSlide(prev => prev + 1);
+                    playSfx('click');
+                    setTimeout(() => isTransitioning.current = false, 500);
+                }
+            };
+
+            const prevSlide = () => {
+                if (isTransitioning.current) return;
+                if (currentSlide > 0) {
+                    isTransitioning.current = true;
+                    setDirection(-1);
+                    setCurrentSlide(prev => prev - 1);
+                    playSfx('click');
+                    setTimeout(() => isTransitioning.current = false, 500);
+                }
+            };
+
+            const toggleFullscreen = () => {
+                if (!document.fullscreenElement) {
+                    document.body.requestFullscreen().then(() => {
+                        setIsFullscreen(true);
+                        setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                    }).catch(console.error);
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen().then(() => {
+                            setIsFullscreen(false);
+                            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                        });
+                    }
+                }
+            };
+
+            const handleStart = () => {
+                setHasStarted(true);
+                playSfx('click');
+                // Auto start music
+                if (audioRef.current) {
+                    audioRef.current.volume = 0.5;
+                    audioRef.current.play().then(() => setAudioPlaying(true)).catch(console.error);
+                }
+            };
+
+            const toggleAudio = () => {
+                if (audioRef.current) {
+                    if (audioPlaying) { audioRef.current.pause(); } else { audioRef.current.play(); }
+                    setAudioPlaying(!audioPlaying);
+                }
+            };
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (!hasStarted) return;
+                    if (e.key === 'ArrowRight' || e.code === 'Space') nextSlide();
+                    else if (e.key === 'ArrowLeft') prevSlide();
+
+                    inputBuffer.current = [...inputBuffer.current, e.key];
+                    if (inputBuffer.current.length > konamiCode.length) inputBuffer.current.shift();
+                    if (JSON.stringify(inputBuffer.current) === JSON.stringify(konamiCode)) triggerPartyMode();
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [currentSlide, hasStarted]);
+
+            const triggerPartyMode = () => {
+                if (partyMode) return;
+                setPartyMode(true);
+                playSfx('vine-boom');
+                setTimeout(() => playSfx('vine-boom'), 500);
+            };
+
+            useEffect(() => { if (window.lucide) setTimeout(() => window.lucide.createIcons(), 50); }, [currentSlide, hasStarted]);
+
+            // DYNAMIC COMPOSITION based on Intensity
+            const appScale = useSpring(1);
+
+            useEffect(() => {
+                // Shake effect logic
+                if (intensity >= 3 && beatTrigger) {
+                    appScale.set(1.02);
+                    setTimeout(() => appScale.set(1), 50);
+                }
+            }, [beatTrigger, intensity]);
+
+            return (
+                <motion.div
+                    style={{ scale: appScale }}
+                    className={`relative w-full h-full overflow-hidden bg-bg-dark text-white select-none flex items-center justify-center ${partyMode ? 'rainbow-mode' : ''}`}
+                    onClick={(e) => {
+                        if (!hasStarted) return;
+                        if (e.target.closest('button') || e.target.closest('.sound-active')) return;
+                        nextSlide();
+                    }}
+                >
+                    <AnimatePresence>
+                        {!hasStarted && <StartOverlay onStart={handleStart} />}
+                    </AnimatePresence>
+
+                    <CustomCursor />
+
+                    {/* GLOBAL EFFECTS OVERLAY */}
+                    <EffectOverlay beatTrigger={beatTrigger} intensity={intensity} />
+
+                    {/* SHARED AUDIO ELEMENT */}
+                    <audio ref={audioRef} src="NightTheater (2).mp3" loop />
+                    <MusicPlayer audioRef={audioRef} isPlaying={audioPlaying} onToggle={toggleAudio} beatTrigger={beatTrigger} intensity={intensity} />
+
+                    <AutoPong intensity={intensity} beatTrigger={beatTrigger} />
+                    <div className="scanlines"></div>
+                    <div className="vignette"></div>
+
+                    <div className="fixed top-0 left-0 w-full p-6 flex justify-between items-center z-40 pointer-events-none">
+                        <div className="text-neon-cyan font-mono text-sm border border-neon-cyan px-2 py-1 rounded bg-black/50">
+                            PROXY_OS_v1.2 (BEAT_SYNCED)
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="pointer-events-auto text-gray-400 hover:text-white transition-colors bg-black/50 p-2 rounded">
+                            <Icon name={isFullscreen ? "minimize" : "maximize"} className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div ref={containerRef} className={partyMode ? 'party-mode-spin' : ''}
+                        style={{ transform: `scale(${scale})`, width: '1920px', height: '1080px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <AnimatePresence mode="wait" initial={false} custom={direction}>
+                            <motion.div key={currentSlide} custom={direction}
+                                variants={{
+                                    enter: (d) => ({ x: d > 0 ? 1500 : -1500, opacity: 0, filter: "blur(10px)", scale: 0.8 }),
+                                    center: { zIndex: 1, x: 0, opacity: 1, filter: "blur(0px)", scale: 1 },
+                                    exit: (d) => ({ zIndex: 0, x: d < 0 ? 1500 : -1500, opacity: 0, filter: "blur(10px)", scale: 0.8 })
+                                }}
+                                initial="enter" animate="center" exit="exit"
+                                transition={{ x: { type: "spring", stiffness: 200, damping: 25 }, opacity: { duration: 0.3 }, scale: { duration: 0.3 } }}
+                                className="absolute w-full h-full flex flex-col items-center justify-center p-20"
+                            >
+                                {slides[currentSlide].title && <h2 className="text-neon-pink text-3xl uppercase tracking-[0.3em] mb-12 font-bold border-b border-neon-pink/30 pb-4 shadow-neon-pink drop-shadow-md">{slides[currentSlide].title}</h2>}
+                                {slides[currentSlide].render()}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+
+                    <ProgressBar current={currentSlide} total={slides.length} />
+                    <div className="fixed bottom-4 right-6 font-mono text-xl text-gray-500 z-50">SLIDE {currentSlide + 1} / {slides.length}</div>
+                </motion.div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
